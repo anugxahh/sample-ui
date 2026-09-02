@@ -159,7 +159,7 @@ function login(){
   const gmailField=(S.role==="customer"||S.role==="lmo")
     ?'<div class="field"><label>Gmail Address</label><input id="gmail" type="email" autocomplete="email" required placeholder="example@gmail.com"><div id="ge" class="error"></div><div class="gmail-note">Use the Gmail address linked to your portal account.</div></div>'
     :"";
-  return header(true)+'<main class="auth"><div class="auth-card"><div class="eyebrow">SECURE SIGN IN</div><h1>Sign in as '+roleName+'</h1><p class="muted">Enter your credentials to continue to the portal.</p><form id="loginForm"><div class="field"><label>Username</label><input id="user" autocomplete="username" minlength="4" required placeholder="Enter username"><div id="ue" class="error"></div></div>'+gmailField+'<div class="field"><label>Password</label><div class="password-wrap"><input id="pass" type="password" autocomplete="current-password" minlength="8" required placeholder="Minimum 8 characters"><button class="eye" type="button" data-action="eye" aria-label="Show password"><svg class="eye-svg" viewBox="0 0 24 24"><path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-9.5-9.5-5-9.5-5Z"></path><circle cx="12" cy="12" r="2.7"></circle></svg></button></div><div id="pe" class="error"></div></div><div class="actions"><button class="btn outline" type="button" data-action="roles">← Back</button><button class="btn primary" type="submit">Sign in</button></div></form><div class="notice">Demo login: any username with 4+ characters, a valid Gmail address for Customer/LMO, and any password with 8+ characters.</div></div></main>';
+  return header(true)+'<main class="login-wrap"><div class="login-card"><div class="eyebrow">SECURE SIGN IN</div><h1>Sign in as '+roleName+'</h1><p class="muted">Enter your credentials to continue to the portal.</p><form id="loginForm"><div class="field"><label>Username</label><input id="user" autocomplete="username" minlength="4" required placeholder="Enter username"><div id="ue" class="error"></div></div>'+gmailField+'<div class="field"><label>Password</label><div class="password-wrap"><input id="pass" type="password" autocomplete="current-password" minlength="8" required placeholder="Minimum 8 characters"><button class="password-eye" type="button" data-action="eye" aria-label="Show password"><svg class="eye-svg" viewBox="0 0 24 24"><path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-9.5-9.5-5-9.5-5Z"></path><circle cx="12" cy="12" r="2.7"></circle></svg></button></div><div id="pe" class="error"></div></div><div class="actions"><button class="btn outline" type="button" data-action="roles">← Back</button><button class="btn primary" type="button" data-action="login">Sign in</button></div></form><div class="notice">Demo login: any username with 4+ characters, a valid Gmail address for Customer/LMO, and any password with 8+ characters.</div></div></main>';
 }
 
 function content(){return S.role==="customer"?customer():S.role==="lmo"?lmo():admin()}
@@ -383,6 +383,7 @@ if(action){
 const a=action.dataset.action;
 if(a==="logout"){logout();return}
 if(a==="roles"){goRoles();return}
+if(a==="login"){attemptLogin();return}
 if(a==="eye"){const i=document.getElementById("pass"),svg=action.querySelector("svg");if(i.type==="password"){i.type="text";svg.innerHTML='<path d="M3 3l18 18"></path><path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z"></path>'}else{i.type="password";svg.innerHTML='<path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z"></path><circle cx="12" cy="12" r="2.7"></circle>'}return}
 if(a==="draft"){toast("Draft saved (demo).");return}
 if(a==="customerSubmit"){S.status="Pending";toast("Application submitted.");S.page="dashboard";render();return}
@@ -407,7 +408,6 @@ e.preventDefault();
 const form=e.target;
 const data=Object.fromEntries(new FormData(form).entries());
 
-/* Immediately reflect the submitted User entity in the Customer Profile. */
 DB.customer.profile={
   id:data.userId||0,
   name:data.name||"",
@@ -431,10 +431,6 @@ DB.customer.current={
 DB.customer.counts.applications=(DB.customer.counts.applications||0)+1;
 DB.customer.counts.pending=(DB.customer.counts.pending||0)+1;
 
-/*
-  Connected mode: send exactly the captured application/user data to Spring Boot.
-  Your teammate can change field names to match the controller/DTO contract.
-*/
 if(API.DEMO_MODE){
   S.status="Pending";
   toast("Application saved. Profile updated.");
@@ -484,10 +480,7 @@ if(API.DEMO_MODE){
 }
 });
 
-document.addEventListener("submit",function(e){
-  if(e.target.id!=="loginForm")return;
-  e.preventDefault();
-
+function attemptLogin(){
   const u=(document.getElementById("user")?.value||"").trim();
   const p=document.getElementById("pass")?.value||"";
   const g=(document.getElementById("gmail")?.value||"").trim();
@@ -502,7 +495,11 @@ document.addEventListener("submit",function(e){
   const gmailOK=!needsGmail||/^[^\s@]+@gmail\.com$/i.test(g);
   if(ge)ge.textContent=needsGmail&&!gmailOK?"Enter a valid Gmail address ending in @gmail.com.":"";
 
-  if(u.length<4||p.length<8||!gmailOK)return;
+  if(u.length<4||p.length<8||!gmailOK){
+    const firstError=u.length<4?"Username must contain at least 4 characters.":p.length<8?"Password must contain at least 8 characters.":"Enter a valid Gmail address ending in @gmail.com.";
+    toast(firstError);
+    return;
+  }
 
   if(S.role==="customer"){
     DB.customer.profile.username=u;
@@ -542,6 +539,12 @@ document.addEventListener("submit",function(e){
   }).catch(()=>{
     toast("Login failed. Check Spring Boot API.");
   });
+}
+
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Enter")return;
+  const form=e.target.closest("#loginForm");
+  if(form){e.preventDefault();attemptLogin();}
 });
 
 
